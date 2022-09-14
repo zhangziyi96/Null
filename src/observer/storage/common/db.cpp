@@ -76,6 +76,22 @@ RC Db::create_table(const char *table_name, int attribute_count, const AttrInfo 
   return RC::SUCCESS;
 }
 
+RC Db::drop_table(const char *table_name)
+{
+  RC rc = RC::SUCCESS;
+  Table *table = find_table(table_name);
+  if(table == nullptr){
+    LOG_INFO("table not exist");
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
+  std::string table_file_path = table_meta_file(path_.c_str(), table_name);
+  table->drop(table_file_path.c_str(), path_.c_str());
+  opened_tables_.erase(std::string(table_name));
+
+  return rc;
+
+}
+
 Table *Db::find_table(const char *table_name) const
 {
   std::unordered_map<std::string, Table *>::const_iterator iter = opened_tables_.find(table_name);
