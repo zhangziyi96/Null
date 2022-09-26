@@ -65,7 +65,6 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
 
   AttrType type_left = UNDEFINED;
   AttrType type_right = UNDEFINED;
-
   if (1 == condition.left_is_attr) {
     left.is_attr = true;
     const FieldMeta *field_left = table_meta.field(condition.left_attr.attribute_name);
@@ -119,7 +118,6 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
   if (type_left != type_right) {
     return RC::SCHEMA_FIELD_TYPE_MISMATCH;
   }
-
   return init(left, right, type_left, condition.comp);
 }
 
@@ -157,6 +155,13 @@ bool DefaultConditionFilter::filter(const Record &rec) const
       float left = *(float *)left_value;
       float right = *(float *)right_value;
       cmp_result = (int)(left - right);
+    } break;
+    case DATES: {
+      char *left = new char[11];
+      char *right = new char[11];
+      format_date(left_value, left);
+      format_date(right_value, right);
+      cmp_result = strcmp(left, right);
     } break;
     default: {
     }

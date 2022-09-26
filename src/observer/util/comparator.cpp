@@ -14,6 +14,8 @@ See the Mulan PSL v2 for more details. */
 
 #include <string.h>
 #include <algorithm>
+#include "common/log/log.h"
+#include "sql/parser/parse_defs.h"
 
 const double epsilon = 1E-6;
 
@@ -56,4 +58,14 @@ int compare_string(void *arg1, int arg1_max_length, void *arg2, int arg2_max_len
     return 0 - s2[maxlen];
   }
   return 0;
+}
+
+int compare_date(void *arg1, void *arg2){
+  const char *s1 = (const char *)arg1;
+  const char *s2 = (const char *)arg2;
+  char *d1 = new char[11];
+  char *d2 = new char[11];
+  format_date(s1, d1);
+  format_date(s2, d2);
+  return compare_string(d1, 11, d2 , 11);
 }

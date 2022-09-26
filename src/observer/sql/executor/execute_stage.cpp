@@ -32,6 +32,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/predicate_operator.h"
 #include "sql/operator/delete_operator.h"
 #include "sql/operator/project_operator.h"
+#include "sql/operator/update_operator.h"
 #include "sql/stmt/stmt.h"
 #include "sql/stmt/select_stmt.h"
 #include "sql/stmt/update_stmt.h"
@@ -142,7 +143,7 @@ void ExecuteStage::handle_request(common::StageEvent *event)
       do_insert(sql_event);
     } break;
     case StmtType::UPDATE: {
-      //do_update((UpdateStmt *)stmt, session_event);
+      do_update(sql_event);
     } break;
     case StmtType::DELETE: {
       do_delete(sql_event);
@@ -165,7 +166,6 @@ void ExecuteStage::handle_request(common::StageEvent *event)
     case SCF_DESC_TABLE: {
       do_desc_table(sql_event);
     } break;
-
     case SCF_DROP_TABLE: {
       do_drop_table(sql_event);
     } break;
@@ -452,9 +452,17 @@ RC ExecuteStage::do_help(SQLStageEvent *sql_event)
 
 RC ExecuteStage::do_create_table(SQLStageEvent *sql_event)
 {
-  const CreateTable &create_table = sql_event->query()->sstr.create_table;
+  CreateTable &create_table = sql_event->query()->sstr.create_table;
   SessionEvent *session_event = sql_event->session_event();
   Db *db = session_event->session()->get_current_db();
+
+  //change attr len if DATES
+  for(int i = 0; i < sizeof(create_table.attributes) / sizeof(create_table.attributes[0]); i++){
+    if(create_table.attributes[i].type == DATES){
+      create_table.attributes[i].length = 12;
+    }
+  }
+
   RC rc = db->create_table(create_table.relation_name,
 			create_table.attribute_count, create_table.attributes);
   if (rc == RC::SUCCESS) {
@@ -543,6 +551,38 @@ RC ExecuteStage::do_insert(SQLStageEvent *sql_event)
 
   Table *table = insert_stmt->table();
   RC rc = table->insert_record(nullptr, insert_stmt->value_amount(), insert_stmt->values());
+  if (rc == RC::SUCCESS) {
+    session_event->set_response("SUCCESS\n");
+  } else {
+    session_event->set_response("FAILURE\n");
+  }
+  return rc;
+}
+
+RC ExecuteStage::do_update(SQLStageEvent *sql_event)
+{
+  RC rc = RC::SUCCESS;
+  Stmt *stmt = sql_event->stmt();
+  SessionEvent *session_event = sql_event->session_event();
+
+  if (stmt == nullptr) {
+    LOG_WARN("cannot find statement");
+    return RC::GENERIC_ERROR;
+  }
+
+  UpdateStmt *update_stmt = (UpdateStmt *)stmt;
+  // Table *table = update_stmt->table();
+  // Value value = update_stmt->value();
+  // const char *attribute_name = update_stmt->attribute_name();
+
+  TableScanOperator scan_oper(update_stmt->table());
+  PredicateOperator pred_oper(update_stmt->filter_stmt());
+  pred_oper.add_child(&scan_oper);
+  UpdateOperator update_oper(update_stmt);
+  update_oper.add_child(&pred_oper);
+
+  rc = update_oper.open();
+
   if (rc == RC::SUCCESS) {
     session_event->set_response("SUCCESS\n");
   } else {

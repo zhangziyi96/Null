@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details. */
 
 RC DeleteOperator::open()
 {
+  std::cout<<"deleteOperator open";
   if (children_.size() != 1) {
     LOG_WARN("delete operator must has 1 child");
     return RC::INTERNAL;

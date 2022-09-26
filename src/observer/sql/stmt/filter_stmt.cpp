@@ -101,7 +101,18 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     }
     left = new FieldExpr(table, field);
   } else {
-    left = new ValueExpr(condition.left_value);
+    //   default_table->table_meta().field(condition)
+    //   LOG_ERROR("condition.left_value.type: %d", condition.left_value.type);
+    //   if(condition.right_value.type == CHARS && condition.left_value.type == DATES ||
+    //   condition.right_value.type == DATES && condition.left_value.type == CHARS){
+    //   LOG_ERROR("start str to date");
+    //   Value *left_value = new Value;
+    //   memcpy(left_value, &(condition.left_value), sizeof(*left_value));
+    //   int ret = value_init_date(left_value, (char*)condition.left_value.data);
+    //   left = new ValueExpr(*left_value);
+    // } else {
+      left = new ValueExpr(condition.left_value);
+    // }
   }
 
   if (condition.right_is_attr) {
@@ -115,7 +126,18 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     }
     right = new FieldExpr(table, field);
   } else {
-    right = new ValueExpr(condition.right_value);
+    // LOG_ERROR("condition.right_value.type: %d", condition.right_value.type);
+    // LOG_ERROR("condition.left_value.type: %d", condition.left_value.type);
+    // if(condition.right_value.type == CHARS && condition.left_value.type == DATES ||
+    // condition.right_value.type == DATES && condition.left_value.type == CHARS){
+    //   LOG_ERROR("start str to date");
+    //   Value *right_value = new Value;
+    //   memcpy(right_value, &(condition.right_value), sizeof(*right_value));
+    //   int ret = value_init_date(right_value, (char*)right_value->data);
+    //   right = new ValueExpr(*right_value);
+    // } else {
+      right = new ValueExpr(condition.right_value);
+    // }
   }
 
   filter_unit = new FilterUnit;

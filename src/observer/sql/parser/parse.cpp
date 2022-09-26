@@ -57,6 +57,81 @@ void value_init_string(Value *value, const char *v)
   value->type = CHARS;
   value->data = strdup(v);
 }
+
+// bool check_date(int y, int m, int d)
+// {
+//     if(y < 1900 || y > 9999 ||
+//       (m <= 0 || m > 12) ||
+//       (d <= 0 || d > 31)){
+//           return false;
+//     }
+//     static int mon[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+//     const int max_day = mon[m - 1];
+//     if (d > max_day)
+//     {
+//         return false; 
+//     }
+
+//     bool leap = (y%400==0 || (y%100 && y%4==0));
+//     if(m == 2 && !leap && d > 28) {
+//         return false;
+//     }
+//     return true;
+// }
+
+int check_date(const char* date){
+    int y,m,d;
+    sscanf(date, "%d-%d-%d", &y, &m, &d);//not check return value eq 3, lex guarantee
+    if(y < 1900 || y > 9999 ||
+      (m <= 0 || m > 12) ||
+      (d <= 0 || d > 31)){
+          return -1;
+    }
+    static int mon[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    const int max_day = mon[m - 1];
+    if (d > max_day)
+    {
+        return -1; 
+    }
+
+    bool leap = (y%400==0 || (y%100 && y%4==0));
+    if(m == 2 && !leap && d > 28) {
+        return -1;
+    }
+    return 0;
+}
+
+int value_init_date(Value *value, const char* v){
+  
+    value->type = DATES;
+    if(check_date(v) != 0){
+      LOG_ERROR("date format error");
+      return -1;
+    }
+    char* date = new char[11];
+    format_date(v, date);
+
+    
+    value->data = malloc(11*sizeof(*date));//TODO:check malloc failure
+    memcpy(value->data, date, 11*sizeof(*date));
+    return 0;
+}
+
+void format_date(const char* v, char *date){
+  int y,m,d;
+  sscanf(v, "%d-%d-%d", &y, &m, &d);//not check return value eq 3, lex guarantee
+  std::string date_str = std::to_string(y) + "-";
+  if(m < 10){
+    date_str += "0";
+  }
+  date_str += std::to_string(m) + "-";
+  if(d < 10){
+    date_str += "0";
+  }
+  date_str += std::to_string(d);
+  memcpy(date, date_str.c_str(), 11 * sizeof(char));
+}
+
 void value_destroy(Value *value)
 {
   value->type = UNDEFINED;

@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/common/field.h"
 #include "common/log/log.h"
 #include "util/comparator.h"
+#include "sql/parser/parse_defs.h"
 
 void TupleCell::to_string(std::ostream &os) const
 {
@@ -34,6 +35,14 @@ void TupleCell::to_string(std::ostream &os) const
       os << data_[i];
     }
   } break;
+  case DATES: {
+   for (int i = 0; i < 11; i++) {
+      if (data_[i] == '\0') {
+        break;
+      }
+      os << data_[i];
+    }
+  }
   default: {
     LOG_WARN("unsupported attr type: %d", attr_type_);
   } break;
@@ -47,6 +56,7 @@ int TupleCell::compare(const TupleCell &other) const
     case INTS: return compare_int(this->data_, other.data_);
     case FLOATS: return compare_float(this->data_, other.data_);
     case CHARS: return compare_string(this->data_, this->length_, other.data_, other.length_);
+    case DATES: return compare_date(this->data_, other.data_);
     default: {
       LOG_WARN("unsupported type: %d", this->attr_type_);
     }
@@ -57,6 +67,10 @@ int TupleCell::compare(const TupleCell &other) const
   } else if (this->attr_type_ == FLOATS && other.attr_type_ == INTS) {
     float other_data = *(int *)other.data_;
     return compare_float(data_, &other_data);
+  } else if (this->attr_type_ == DATES && other.attr_type_ == CHARS) {
+    char *other_data = new char[11];
+    format_date(other.data_,other_data);
+    return compare_string(data_,11, other_data,11);
   }
   LOG_WARN("not supported");
   return -1; // TODO return rc?

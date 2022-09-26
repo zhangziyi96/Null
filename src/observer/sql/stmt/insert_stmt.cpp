@@ -38,8 +38,9 @@ RC InsertStmt::create(Db *db, const Inserts &inserts, Stmt *&stmt)
   }
 
   // check the fields number
-  const Value *values = inserts.values;
   const int value_num = inserts.value_num;
+  Value *values = new Value[value_num];
+  memcpy(values, inserts.values, value_num * sizeof(*values));
   const TableMeta &table_meta = table->table_meta();
   const int field_num = table_meta.field_num() - table_meta.sys_field_num();
   if (field_num != value_num) {
@@ -54,9 +55,19 @@ RC InsertStmt::create(Db *db, const Inserts &inserts, Stmt *&stmt)
     const AttrType field_type = field_meta->type();
     const AttrType value_type = values[i].type;
     if (field_type != value_type) { // TODO try to convert the value type to field type
-      LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d", 
-               table_name, field_meta->name(), field_type, value_type);
-      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      if(field_type == DATES && value_type == CHARS && check_date((char*)values[i].data) == 0){
+        
+        int ret = value_init_date(&values[i], (char*)values[i].data);
+        if(ret != 0){
+          LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d", 
+                table_name, field_meta->name(), field_type, value_type);
+          return RC::INVALID_ARGUMENT;
+        }
+      } else {
+        LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d", 
+                table_name, field_meta->name(), field_type, value_type);
+        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      }
     }
   }
 
