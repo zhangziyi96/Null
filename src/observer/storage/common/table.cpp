@@ -634,7 +634,7 @@ RC Table::update_record(Trx *trx, const char *attribute_name, const Value *value
     return RC::INVALID_ARGUMENT;
   }
   //TO_DO...
-
+  return RC::SUCCESS;
 
 
   
