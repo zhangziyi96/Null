@@ -87,7 +87,7 @@ int check_date(const char* date){
       (d <= 0 || d > 31)){
           return -1;
     }
-    static int mon[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    static int mon[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
     const int max_day = mon[m - 1];
     if (d > max_day)
     {

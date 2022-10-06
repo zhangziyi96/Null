@@ -156,23 +156,80 @@ public:
   {
     return *record_;
   }
+
+  const Table *table() const
+  {
+    return table_;
+  }
 private:
   Record *record_ = nullptr;
   const Table *table_ = nullptr;
   std::vector<TupleCellSpec *> speces_;
 };
 
-/*
+
 class CompositeTuple : public Tuple
 {
 public:
-  int cell_num() const override; 
-  RC  cell_at(int index, TupleCell &cell) const = 0;
+  int cell_num() const override {
+    return cell_num_;
+  }
+  RC  cell_at(int index, TupleCell &cell) const override {
+    if (index < 0 || index >= cell_num_) {
+      LOG_WARN("invalid argument. index=%d", index);
+      return RC::INVALID_ARGUMENT;
+    }
+    for(auto tuple: tuples_){
+      if(index < tuple->cell_num()){
+        return tuple->cell_at(index, cell);
+      }
+      index -= tuple->cell_num();
+    }
+    return RC::INVALID_ARGUMENT;
+  }
+  RC find_cell(const Field &field, TupleCell &cell) const override {
+    for(auto tuple: tuples_){
+      if(RC::SUCCESS == tuple->find_cell(field, cell)){
+        return RC::SUCCESS;
+      }
+    }
+    return RC::NOTFOUND;
+  }
+
+  void push_back(Tuple *tuple){
+    tuples_.push_back(tuple);
+  }
+
+  void pop_back(){
+    if(!tuples_.empty()){
+      tuples_.pop_back();
+    }
+  }
+
+  void clear(){
+    tuples_.clear();
+  }
+
+  RC cell_spec_at(int index, const TupleCellSpec *&spec) const override
+  {
+    if (index < 0 || index >= cell_num_) {
+      LOG_WARN("invalid argument. index=%d", index);
+      return RC::INVALID_ARGUMENT;
+    }
+
+    for(auto tuple: tuples_) {
+      if (index < tuple->cell_num()){
+        return tuple->cell_spec_at(index, spec);
+      }
+      index -= tuple->cell_num();
+    }
+    return RC::INVALID_ARGUMENT;
+  }
+
 private:
   int cell_num_ = 0;
   std::vector<Tuple *> tuples_;
 };
-*/
 
 class ProjectTuple : public Tuple
 {
