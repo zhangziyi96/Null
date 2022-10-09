@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include <string>
 #include <sstream>
+#include <algorithm>
 
 #include "execute_stage.h"
 
@@ -34,6 +35,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/project_operator.h"
 #include "sql/operator/update_operator.h"
 #include "sql/operator/multi_select_operator.h"
+#include "sql/operator/aggregation_operator.h"
 #include "sql/stmt/stmt.h"
 #include "sql/stmt/select_stmt.h"
 #include "sql/stmt/update_stmt.h"
@@ -46,6 +48,8 @@ See the Mulan PSL v2 for more details. */
 #include "storage/default/default_handler.h"
 #include "storage/common/condition_filter.h"
 #include "storage/trx/trx.h"
+
+
 
 using namespace common;
 
@@ -232,6 +236,70 @@ void print_tuple_header(std::ostream &os, const ProjectOperator &oper)
   }
 
   if (cell_num > 0) {
+    os << '\n';
+  }
+}
+
+void print_tuple_header(std::ostream &os, const AggregationOperator &oper){
+  const int aggre_num = oper.aggre_num();
+  const char* types[4] = {"COUNT", "MAX", "MIN", "AVG"};
+  for(int i = 0; i < aggre_num; i++){
+    const Aggregation aggregation = oper.aggregations()[i];
+    const char* attribute_name = aggregation.attr.attribute_name;
+    const char* type = types[aggregation.type];
+    std::string s = std::string(type) + "(" + std::string( attribute_name) + ")";
+    transform(s.begin(),s.end(),s.begin(),::toupper);
+    if(i != 0) {
+      os << " | ";
+    } 
+      os << s;
+  }
+  if (aggre_num > 0) {
+    os << '\n';
+  }
+}
+
+void print_aggre_result(std::ostream &os, const AggregationOperator &oper){
+  const int aggre_num = oper.aggre_num();
+  for(int i = 0; i < aggre_num; i++){
+    const Aggregation aggregation = oper.aggregations()[i];
+    const AggreResult result = oper.aggre_results()[i];
+    if (i != 0){
+      os << " | ";
+    }
+    if(aggregation.type == COUNT){
+      os << result.count;
+    } else if (aggregation.type == AVG) {
+      os << result.avg;
+    } else if (aggregation.type == MIN) {
+      if(result.result.type == INTS) {
+        os << *(int*)(result.result.data);
+      } else if (result.result.type == FLOATS) {
+        os << *(float*)(result.result.data);
+      } else if (result.result.type == CHARS || result.result.type ==DATES) {
+        for (int i = 0; i < result.char_length; i++) {
+          if (((char*)(result.result.data))[i] == '\0') {
+            break;
+          }
+          os << ((char*)(result.result.data))[i];
+        }
+      }
+    } else if (aggregation.type == MAX) {
+      if(result.result.type == INTS) {
+        os << *(int*)(result.result.data);
+      } else if (result.result.type == FLOATS) {
+        os << *(float*)(result.result.data);
+      } else if (result.result.type == CHARS || result.result.type ==DATES) {
+        for (int i = 0; i < result.char_length; i++) {
+          if (((char*)(result.result.data))[i] == '\0') {
+            break;
+          }
+          os << ((char*)(result.result.data))[i];
+        }
+      }
+    } 
+  }
+  if (aggre_num > 0) {
     os << '\n';
   }
 }
@@ -423,15 +491,15 @@ RC ExecuteStage::do_select(SQLStageEvent *sql_event)
   RC rc = RC::SUCCESS;
   if (select_stmt->tables().size() != 1) {
 
-    
-    MultiSelectOperator multi_select_oper;
+    PredicateOperator inner_pred_oper(select_stmt->filter_stmt());
+    MultiSelectOperator multi_select_oper(&inner_pred_oper);
 
     std::vector<Table*> tables;
     for (Table *table : select_stmt->tables()){
       Operator *scan_oper = new TableScanOperator(table);
       PredicateOperator *pred_oper = new PredicateOperator(select_stmt->filter_stmt());
       pred_oper->add_child(scan_oper);
-      multi_select_oper.add_child(pred_oper);
+      multi_select_oper.add_child(scan_oper);
 
     }
 
@@ -458,19 +526,19 @@ RC ExecuteStage::do_select(SQLStageEvent *sql_event)
     
     std::stringstream ss;
     print_tuple_header(ss, project_oper);
-    int i = 0;
-    while ((rc = project_oper.next()) == RC::SUCCESS) {
-      i++;
-      Tuple * tuple = project_oper.current_tuple();
-      if (nullptr == tuple) {
-        rc = RC::INTERNAL;
-        LOG_WARN("failed to get current record. rc=%s", strrc(rc));
-        break;
+    while ((rc = project_oper.next()) != RC::RECORD_EOF) {
+      if(rc == RC::SUCCESS){
+        Tuple * tuple = project_oper.current_tuple();
+        if (nullptr == tuple) {
+          rc = RC::INTERNAL;
+          LOG_WARN("failed to get current record. rc=%s", strrc(rc));
+          break;
+        }
+        
+        tuple_to_string(ss, *tuple);
+        
+        ss << std::endl;
       }
-      
-      tuple_to_string(ss, *tuple);
-      
-      ss << std::endl;
     }
    
     if (rc != RC::RECORD_EOF) {
@@ -483,54 +551,80 @@ RC ExecuteStage::do_select(SQLStageEvent *sql_event)
     
     LOG_ERROR("ss: \n%s", ss.str().c_str());
     return rc;
-  }
-
-  else{
-    Operator *scan_oper = try_to_create_index_scan_operator(select_stmt->filter_stmt());
-    if (nullptr == scan_oper) {
-      scan_oper = new TableScanOperator(select_stmt->tables()[0]);
-    }
-
-    DEFER([&] () {delete scan_oper;});
-
-    PredicateOperator pred_oper(select_stmt->filter_stmt());
-    pred_oper.add_child(scan_oper);
-    ProjectOperator project_oper;
-    project_oper.add_child(&pred_oper);
-    for (const Field &field : select_stmt->query_fields()) {
-      project_oper.add_projection(field.table(), field.meta(), false);
-    }
-    rc = project_oper.open();
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("failed to open operator");
-      return rc;
-    }
-
-    std::stringstream ss;
-    print_tuple_header(ss, project_oper);
-    while ((rc = project_oper.next()) == RC::SUCCESS) {
-      // get current record
-      // write to response
-      Tuple * tuple = project_oper.current_tuple();
-      if (nullptr == tuple) {
-        rc = RC::INTERNAL;
-        LOG_WARN("failed to get current record. rc=%s", strrc(rc));
-        break;
+  } else if(select_stmt->aggregations().size() != 0){ //aggregation func
+      Operator *scan_oper = try_to_create_index_scan_operator(select_stmt->filter_stmt());
+      if (nullptr == scan_oper) {
+        scan_oper = new TableScanOperator(select_stmt->tables()[0]);
       }
 
-      tuple_to_string(ss, *tuple);
-      ss << std::endl;
-    }
+      DEFER([&] () {delete scan_oper;});
+      PredicateOperator pred_oper(select_stmt->filter_stmt());
+      pred_oper.add_child(scan_oper);
+      
+      AggregationOperator aggre_oper(select_stmt->aggregations(), select_stmt->tables()[0]);
+      aggre_oper.add_child(&pred_oper);
+      if((rc = aggre_oper.open()) != RC::SUCCESS){
+        session_event->set_response("FAILURE\n");
+        return rc;
+      }
+      std::stringstream ss;
+      print_tuple_header(ss, aggre_oper);
+      while((rc = aggre_oper.next()) == RC::SUCCESS){
 
-    if (rc != RC::RECORD_EOF) {
-      LOG_WARN("something wrong while iterate operator. rc=%s", strrc(rc));
-      project_oper.close();
-    } else {
-      rc = project_oper.close();
+      }
+      // for(int i = 0; i < aggre_oper.aggre_results().size(); i++){
+        // LOG_ERROR("min: %s", (char*)(aggre_oper.aggre_results()[0].result.data));
+      // }
+      print_aggre_result(ss, aggre_oper);
+      session_event->set_response(ss.str());
+      return rc;
+
+  } else {
+      Operator *scan_oper = try_to_create_index_scan_operator(select_stmt->filter_stmt());
+      if (nullptr == scan_oper) {
+        scan_oper = new TableScanOperator(select_stmt->tables()[0]);
+      }
+
+      DEFER([&] () {delete scan_oper;});
+
+      PredicateOperator pred_oper(select_stmt->filter_stmt());
+      pred_oper.add_child(scan_oper);
+      ProjectOperator project_oper;
+      project_oper.add_child(&pred_oper);
+      for (const Field &field : select_stmt->query_fields()) {
+        project_oper.add_projection(field.table(), field.meta(), false);
+      }
+      rc = project_oper.open();
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to open operator");
+        return rc;
+      }
+
+      std::stringstream ss;
+      print_tuple_header(ss, project_oper);
+      while ((rc = project_oper.next()) == RC::SUCCESS) {
+        // get current record
+        // write to response
+        Tuple * tuple = project_oper.current_tuple();
+        if (nullptr == tuple) {
+          rc = RC::INTERNAL;
+          LOG_WARN("failed to get current record. rc=%s", strrc(rc));
+          break;
+        }
+
+        tuple_to_string(ss, *tuple);
+        ss << std::endl;
+      }
+
+      if (rc != RC::RECORD_EOF) {
+        LOG_WARN("something wrong while iterate operator. rc=%s", strrc(rc));
+        project_oper.close();
+      } else {
+        rc = project_oper.close();
+      }
+      session_event->set_response(ss.str());
+      return rc;
     }
-    session_event->set_response(ss.str());
-    return rc;
-  }
   
 }
 

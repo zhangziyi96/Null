@@ -75,3 +75,29 @@ int TupleCell::compare(const TupleCell &other) const
   LOG_WARN("not supported");
   return -1; // TODO return rc?
 }
+
+int TupleCell::compare(const AggreResult &other) const{
+  if (this->attr_type_ == other.result.type) {
+    switch (this->attr_type_) {
+    case INTS: return compare_int(this->data_, other.result.data);
+    case FLOATS: return compare_float(this->data_, other.result.data);
+    case CHARS: return compare_string(this->data_, this->length_, other.result.data, other.char_length);
+    case DATES: return compare_date(this->data_, other.result.data);
+    default: {
+      LOG_WARN("unsupported type: %d", this->attr_type_);
+    }
+    }
+  } else if (this->attr_type_ == INTS && other.result.type == FLOATS) {
+    float this_data = *(int *)data_;
+    return compare_float(&this_data, other.result.data);
+  } else if (this->attr_type_ == FLOATS && other.result.type == INTS) {
+    float other_data = *(int *)other.result.data;
+    return compare_float(data_, &other_data);
+  } else if (this->attr_type_ == DATES && other.result.type == CHARS) {
+    char *other_data = new char[11];
+    format_date((char*)(other.result.data),other_data);
+    return compare_string(data_,11, other_data,11);
+  }
+  LOG_WARN("not supported");
+  return -1; // TODO return rc?
+}

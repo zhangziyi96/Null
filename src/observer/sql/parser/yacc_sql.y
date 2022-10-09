@@ -17,6 +17,7 @@ typedef struct ParserContext {
   size_t from_length;
   size_t value_length;
   Value values[MAX_NUM];
+  AggreType aggre_type;
   Condition conditions[MAX_NUM];
   CompOp comp;
 	char id[MAX_NUM];
@@ -97,6 +98,12 @@ ParserContext *get_context(yyscan_t scanner)
         LOAD
         DATA
         INFILE
+		JOIN
+		INNER
+		COUNT_T
+		MIN_T
+		MAX_T
+		AVG_T
         EQ
         LT
         GT
@@ -137,6 +144,8 @@ commands:		//commands or sqls. parser starts here.
 
 command:
 	  select  
+	| select_inner_join
+	| select_aggregation_func
 	| insert
 	| update
 	| delete
@@ -354,6 +363,73 @@ select:				/*  select 语句的语法解析树*/
 			CONTEXT->value_length = 0;
 	}
 	;
+select_aggregation_func:
+	SELECT aggregation_func_list FROM ID where SEMICOLON
+	{
+		selects_append_relation(&CONTEXT->ssql->sstr.selection, $4);
+		selects_append_conditions(&CONTEXT->ssql->sstr.selection, CONTEXT->conditions, CONTEXT->condition_length);
+		CONTEXT->ssql->flag=SCF_SELECT;//"select";
+		// CONTEXT->ssql->sstr.selection.attr_num = CONTEXT->select_length;
+
+		//临时变量清零
+		CONTEXT->condition_length=0;
+		CONTEXT->from_length=0;
+		CONTEXT->select_length=0;
+		CONTEXT->value_length = 0;
+	}
+
+aggregation_func_list:
+      aggregation_func
+	| aggregation_func_list COMMA aggregation_func;
+
+aggregation_func:
+	aggregation_func_type LBRACE STAR RBRACE {
+		RelAttr attr;
+		relation_attr_init(&attr, NULL, "*");
+		Aggregation aggre;
+		aggre_init(&aggre, CONTEXT->aggre_type, &attr);
+		selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &aggre);
+		
+	}
+	| aggregation_func_type LBRACE ID RBRACE {
+		RelAttr attr;
+		relation_attr_init(&attr, NULL, $3);
+		Aggregation aggre;
+		aggre_init(&aggre, CONTEXT->aggre_type, &attr);
+		selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &aggre);
+		
+	};
+
+aggregation_func_type:
+	  COUNT_T{CONTEXT->aggre_type = COUNT;}
+	| MIN_T{CONTEXT->aggre_type = MIN;}
+	| MAX_T{CONTEXT->aggre_type = MAX;}
+	| AVG_T{CONTEXT->aggre_type = AVG;};
+
+
+
+select_inner_join:
+	SELECT select_attr FROM ID INNER JOIN ID ON condition inner_join_list where SEMICOLON{
+			// CONTEXT->ssql->sstr.selection.relations[CONTEXT->from_length++]=$4;
+			selects_append_relation(&CONTEXT->ssql->sstr.selection, $4);
+			selects_append_relation(&CONTEXT->ssql->sstr.selection, $7);
+			selects_append_conditions(&CONTEXT->ssql->sstr.selection, CONTEXT->conditions, CONTEXT->condition_length);
+
+			CONTEXT->ssql->flag=SCF_SELECT;//"select";
+			// CONTEXT->ssql->sstr.selection.attr_num = CONTEXT->select_length;
+
+			//临时变量清零
+			CONTEXT->condition_length=0;
+			CONTEXT->from_length=0;
+			CONTEXT->select_length=0;
+			CONTEXT->value_length = 0;
+	};
+
+inner_join_list:
+/* empty */
+	| INNER JOIN ID ON condition inner_join_list{
+		selects_append_relation(&CONTEXT->ssql->sstr.selection, $3);
+	};
 
 select_attr:
     STAR {  

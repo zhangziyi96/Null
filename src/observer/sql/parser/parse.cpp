@@ -182,7 +182,10 @@ void attr_info_destroy(AttrInfo *attr_info)
   free(attr_info->name);
   attr_info->name = nullptr;
 }
-
+void aggre_init(Aggregation *aggre, AggreType type, RelAttr * rel_attr){
+  aggre->type = type;
+  aggre->attr = *rel_attr;
+}
 void selects_init(Selects *selects, ...);
 void selects_append_attribute(Selects *selects, RelAttr *rel_attr)
 {
@@ -202,6 +205,9 @@ void selects_append_conditions(Selects *selects, Condition conditions[], size_t 
   selects->condition_num = condition_num;
 }
 
+void selects_append_aggregation(Selects *selects, Aggregation *aggre){
+  selects->aggre[selects->aggre_size++] = *aggre;
+}
 void selects_destroy(Selects *selects)
 {
   for (size_t i = 0; i < selects->attr_num; i++) {

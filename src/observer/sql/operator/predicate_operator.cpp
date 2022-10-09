@@ -73,7 +73,7 @@ bool PredicateOperator::do_predicate(RowTuple &tuple)
     right_expr->get_value(tuple, right_cell);
     
     if(left_cell.attr_type() == UNDEFINED || right_cell.attr_type() == UNDEFINED){
-      return true;
+      continue;
     }
     const int compare = left_cell.compare(right_cell);
     bool filter_result = false;

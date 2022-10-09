@@ -43,29 +43,35 @@ RC MultiSelectOperator::next()
     RC rc = RC::SUCCESS;
     while(!stack_.empty()){
         Operator *stack_oper = stack_[stack_.size() - 1];
-        
         if(RC::SUCCESS == (rc = stack_oper->next())){
             add_tuple(static_cast<RowTuple*>(stack_oper->current_tuple()));
-            // LOG_ERROR("tuple: %s, v: %d", dynamic_cast<RowTuple*>(stack_oper->current_tuple())->table()->name(), *(int*)(dynamic_cast<RowTuple*>(stack_oper->current_tuple())->record().data() + 4));
+            tuple_.clear();
+            get_multi_tuple();
+            if (!pred_oper_->do_predicate(static_cast<RowTuple &>(*(current_tuple())))) {
+              tuples_.pop_back();
+              return RC::FILTER_FAIL;
+            }
             while(!out_stack_.empty()){
                 Operator *out_oper = out_stack_[out_stack_.size() - 1];
                 if(RC::SUCCESS == (rc = out_oper->next())){
                     add_tuple(static_cast<RowTuple*>(out_oper->current_tuple()));
-                    // LOG_ERROR("tuple: %s, v: %d", dynamic_cast<RowTuple*>(out_oper->current_tuple())->table()->name(), *(int*)(dynamic_cast<RowTuple*>(out_oper->current_tuple())->record().data() + 4));
-
+                    tuple_.clear();
+                    get_multi_tuple();
+                    if (!pred_oper_->do_predicate(static_cast<RowTuple &>(*(current_tuple())))) {
+                      tuples_.pop_back();
+                      stack_.push_back(out_stack_[out_stack_.size() - 1]);
+                      out_stack_.pop_back();
+                      return RC::FILTER_FAIL;
+                    }
                 }
                 stack_.push_back(out_stack_[out_stack_.size() - 1]);
-                
                 out_stack_.pop_back();
             }
-
             tuple_.clear();
             get_multi_tuple();
-    
             tuples_.pop_back();
-            return rc;
+            return RC::SUCCESS;
         } else {
-
             stack_.pop_back();
             stack_oper->close();
             stack_oper->open();

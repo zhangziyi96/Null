@@ -129,6 +129,17 @@ RC SelectStmt::create(Db *db, const Selects &select_sql, Stmt *&stmt)
     default_table = tables[0];
   }
 
+  //get aggregation func
+  std::vector<Aggregation> aggregations;
+  for(int i = select_sql.aggre_size - 1; i >= 0; i--){
+    //there only on table for aggregation func select.
+    Aggregation aggre = select_sql.aggre[i];
+    aggre.attr.relation_name = select_sql.relations[0];
+    aggregations.push_back(aggre);
+  }
+  std::reverse(aggregations.begin(), aggregations.end());
+
+
   // create filter statement in `where` statement
   FilterStmt *filter_stmt = nullptr;
   RC rc = FilterStmt::create(db, default_table, &table_map,
@@ -142,6 +153,7 @@ RC SelectStmt::create(Db *db, const Selects &select_sql, Stmt *&stmt)
   SelectStmt *select_stmt = new SelectStmt();
   select_stmt->tables_.swap(tables);
   select_stmt->query_fields_.swap(query_fields);
+  select_stmt->aggregations_.swap(aggregations);
   select_stmt->filter_stmt_ = filter_stmt;
   stmt = select_stmt;
   return RC::SUCCESS;

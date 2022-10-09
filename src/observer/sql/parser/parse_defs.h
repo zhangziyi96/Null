@@ -50,6 +50,14 @@ typedef enum
   FLOATS
 } AttrType;
 
+typedef enum
+{
+  COUNT,
+  MAX,
+  MIN,
+  AVG
+} AggreType;
+
 //属性值
 typedef struct _Value {
   AttrType type;  // type of value
@@ -68,6 +76,20 @@ typedef struct _Condition {
   Value right_value;   // right-hand side value if right_is_attr = FALSE
 } Condition;
 
+typedef struct {
+  AggreType type;
+  RelAttr attr;
+} Aggregation;
+
+typedef struct {
+  AggreType type;
+  size_t count;
+  Value sum;
+  Value result;
+  float avg;
+  size_t char_length; //the length for STRING type
+} AggreResult;
+
 // struct of select
 typedef struct {
   size_t attr_num;                // Length of attrs in Select clause
@@ -76,6 +98,8 @@ typedef struct {
   char *relations[MAX_NUM];       // relations in From clause
   size_t condition_num;           // Length of conditions in Where clause
   Condition conditions[MAX_NUM];  // conditions in Where clause
+  size_t aggre_size;
+  Aggregation aggre[MAX_NUM];
 } Selects;
 
 // struct of insert
@@ -200,6 +224,8 @@ void condition_init(Condition *condition, CompOp comp, int left_is_attr, RelAttr
     int right_is_attr, RelAttr *right_attr, Value *right_value);
 void condition_destroy(Condition *condition);
 
+void aggre_init(Aggregation *aggre, AggreType type, RelAttr * rel_attr);
+
 void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length);
 void attr_info_destroy(AttrInfo *attr_info);
 
@@ -207,6 +233,7 @@ void selects_init(Selects *selects, ...);
 void selects_append_attribute(Selects *selects, RelAttr *rel_attr);
 void selects_append_relation(Selects *selects, const char *relation_name);
 void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num);
+void selects_append_aggregation(Selects *selects, Aggregation *aggre);
 void selects_destroy(Selects *selects);
 
 void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num);
