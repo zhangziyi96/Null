@@ -48,7 +48,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/default/default_handler.h"
 #include "storage/common/condition_filter.h"
 #include "storage/trx/trx.h"
-
+#include "util/util.h"
 
 
 using namespace common;
@@ -271,33 +271,11 @@ void print_aggre_result(std::ostream &os, const AggregationOperator &oper){
       os << result.count;
     } else if (aggregation.type == AVG) {
       os << result.avg;
-    } else if (aggregation.type == MIN) {
-      if(result.result.type == INTS) {
-        os << *(int*)(result.result.data);
-      } else if (result.result.type == FLOATS) {
-        os << *(float*)(result.result.data);
-      } else if (result.result.type == CHARS || result.result.type ==DATES) {
-        for (int i = 0; i < result.char_length; i++) {
-          if (((char*)(result.result.data))[i] == '\0') {
-            break;
-          }
-          os << ((char*)(result.result.data))[i];
-        }
-      }
-    } else if (aggregation.type == MAX) {
-      if(result.result.type == INTS) {
-        os << *(int*)(result.result.data);
-      } else if (result.result.type == FLOATS) {
-        os << *(float*)(result.result.data);
-      } else if (result.result.type == CHARS || result.result.type ==DATES) {
-        for (int i = 0; i < result.char_length; i++) {
-          if (((char*)(result.result.data))[i] == '\0') {
-            break;
-          }
-          os << ((char*)(result.result.data))[i];
-        }
-      }
-    } 
+    } else if (aggregation.type == MIN || aggregation.type == MAX) {
+      std::string str;
+      value_to_string(str, result.result);
+      os << str;
+    }
   }
   if (aggre_num > 0) {
     os << '\n';
