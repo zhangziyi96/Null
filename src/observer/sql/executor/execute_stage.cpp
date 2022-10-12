@@ -220,7 +220,7 @@ void end_trx_if_need(Session *session, Trx *trx, bool all_right)
   }
 }
 
-void print_tuple_header(std::ostream &os, const ProjectOperator &oper)
+void print_tuple_header(std::ostream &os, const ProjectOperator &oper, const SelectStmt &select_stmt)
 {
   const int cell_num = oper.tuple_cell_num();
   const TupleCellSpec *cell_spec = nullptr;
@@ -235,9 +235,22 @@ void print_tuple_header(std::ostream &os, const ProjectOperator &oper)
     }
   }
 
-  if (cell_num > 0) {
+  const std::vector<ExpressionNode> exprs = select_stmt.exprs();
+  if(exprs.size() > 0 && cell_num != 0) {
+    os << " | ";
+  }
+  for(int i = 0; i < exprs.size(); i++) {
+    ExpressionNode expr = exprs[i];
+    std::string expr_str = expr_to_string(&expr);
+    if( i != 0 ){
+      os << " | ";
+    }
+    os << expr_str;
+  }
+  if (cell_num > 0 || exprs.size() > 0) {
     os << '\n';
   }
+
 }
 
 void print_tuple_header(std::ostream &os, const AggregationOperator &oper){
@@ -281,6 +294,120 @@ void print_aggre_result(std::ostream &os, const AggregationOperator &oper){
     os << '\n';
   }
 }
+
+//测试用例中没有字符串类型，所以不做类型检查，只检查field是否存在
+RC check_expr(const ExpressionNode *expr, const std::vector<Table*> tables) {
+  if(expr->left == nullptr && expr->right == nullptr) {
+    if(expr->is_attr) {
+      Table *table = nullptr;
+      //多表
+      if(tables.size() != 1){
+        if(expr->attr.relation_name == nullptr) {
+          return RC::INVALID_ARGUMENT;
+        }
+        for(int i = 0; i < tables.size(); i++) {
+          if(strcmp(tables[i]->name(), expr->attr.relation_name) == 0) {
+            table = tables[i];
+            break;
+          }
+        }
+      } else { //单表
+        if(expr->attr.relation_name != nullptr && strlen(expr->attr.relation_name) != 0
+           && strcmp(tables[0]->name(), expr->attr.relation_name) != 0){
+          return RC::INVALID_ARGUMENT;
+        }
+        table = tables[0];
+      }
+      if(table == nullptr) {
+        return RC::INVALID_ARGUMENT;
+      }
+      const FieldMeta *field_meta = table->table_meta().field(expr->attr.attribute_name);
+      if(field_meta == nullptr){
+        LOG_ERROR("expr attr::%s", expr->attr.attribute_name);
+        return RC::INVALID_ARGUMENT;
+      }
+    }
+    return RC::SUCCESS;
+  }
+
+  
+
+  if(expr->left != nullptr) {
+    if(check_expr(expr->left, tables) != RC::SUCCESS){
+      return RC::INVALID_ARGUMENT;
+    }
+  }
+  if(expr->right != nullptr) {
+    if(check_expr(expr->right, tables) != RC::SUCCESS){
+      return RC::INVALID_ARGUMENT;
+    }
+  }
+  return RC::SUCCESS;
+}
+
+//calculate expr value
+Value cal_expr_value(const ExpressionNode &expr, const Tuple &tuple, const std::vector<Table*> tables){
+  //是叶节点
+  if(expr.left == nullptr && expr.right == nullptr) {
+    Value value;
+    if(expr.is_attr) {
+      Field field;
+      get_field(tables, expr.attr,field);
+      TupleCell cell;
+      tuple.find_cell(field, cell);
+      cell_to_value(cell, value);
+    } else if(expr.is_value) {
+      value = expr.value;
+    }
+    std::string str;
+    value_to_string(str, value);
+    LOG_ERROR("leaf value: %s", str.c_str());
+    return value;
+  }
+  Value left_value;
+  Value right_value;      std::string strl;
+    std::string strr;
+  if (expr.left != nullptr) {
+    left_value = cal_expr_value(*(expr.left), tuple, tables);  
+    value_to_string(strl, left_value);
+    LOG_ERROR("left_value: %s", strl.c_str());
+    if(left_value.data == nullptr && left_value.type == UNDEFINED) {//除数是0
+      return left_value;
+    }
+  }
+  if(expr.right != nullptr) {
+    right_value = cal_expr_value(*(expr.right), tuple, tables);
+    value_to_string(strr, right_value);
+    LOG_ERROR("right_value: %s", strr.c_str());
+    LOG_ERROR("afer right value: %s", strl.c_str());
+    if(right_value.data == nullptr && right_value.type == UNDEFINED) {//除数是0
+      return right_value;
+    }
+  }
+
+  if(expr.op == PLUS_OP) {
+
+    return value_plus_value(left_value, right_value);
+  } else if(expr.op == MINUS_OP) {
+    return value_minus_value(left_value, right_value);
+  } else if(expr.op == MULTI_OP) {
+    return value_multi_value(left_value, right_value);
+  } else if(expr.op == DIVIDE_OP) {
+    return value_divide_value(left_value, right_value);
+  } else {
+    if (expr.pre_op == MINUS_OP) {
+      Value temp;
+      temp.data = new int;
+      *(int*)(temp.data) = 0;
+      temp.type = INTS;
+      return value_minus_value(temp, left_value);
+    } 
+    return left_value;
+  }
+
+}
+
+
 void tuple_to_string(std::ostream &os, const Tuple &tuple)
 {
   TupleCell cell;
@@ -299,6 +426,24 @@ void tuple_to_string(std::ostream &os, const Tuple &tuple)
       first_field = false;
     }
     cell.to_string(os);
+  }
+}
+
+void tuple_to_string(std::ostream &os, const Tuple &tuple, const SelectStmt &select_stmt) {
+  std::vector<ExpressionNode> exprs = select_stmt.exprs();
+  std::vector<Table*> tables = select_stmt.tables();
+  if(tuple.cell_num() != 0) {
+    os << " | ";
+  }
+  for(int i = 0; i < exprs.size(); i++) {
+    ExpressionNode expr = exprs[i];
+    Value value = cal_expr_value(expr, tuple, tables);
+    std::string str;
+    value_to_string(str, value);
+    if(i != 0) {
+      os << " | ";
+    }
+    os << str;
   }
 }
 
@@ -503,7 +648,7 @@ RC ExecuteStage::do_select(SQLStageEvent *sql_event)
     }
     
     std::stringstream ss;
-    print_tuple_header(ss, project_oper);
+    print_tuple_header(ss, project_oper, *select_stmt);
     while ((rc = project_oper.next()) != RC::RECORD_EOF) {
       if(rc == RC::SUCCESS){
         Tuple * tuple = project_oper.current_tuple();
@@ -514,7 +659,7 @@ RC ExecuteStage::do_select(SQLStageEvent *sql_event)
         }
         
         tuple_to_string(ss, *tuple);
-        
+        tuple_to_string(ss, *tuple, *select_stmt);
         ss << std::endl;
       }
     }
@@ -579,7 +724,7 @@ RC ExecuteStage::do_select(SQLStageEvent *sql_event)
       }
 
       std::stringstream ss;
-      print_tuple_header(ss, project_oper);
+      print_tuple_header(ss, project_oper, *select_stmt);
       while ((rc = project_oper.next()) == RC::SUCCESS) {
         // get current record
         // write to response
@@ -589,8 +734,8 @@ RC ExecuteStage::do_select(SQLStageEvent *sql_event)
           LOG_WARN("failed to get current record. rc=%s", strrc(rc));
           break;
         }
-
         tuple_to_string(ss, *tuple);
+        tuple_to_string(ss, *tuple, *select_stmt);
         ss << std::endl;
       }
 

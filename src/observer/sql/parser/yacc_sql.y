@@ -119,6 +119,7 @@ ParserContext *get_context(yyscan_t scanner)
   int number;
   float floats;
 	char *position;
+  struct ExpressionNode *express_node;
 }
 
 %token <number> NUMBER
@@ -134,6 +135,10 @@ ParserContext *get_context(yyscan_t scanner)
 %type <condition1> condition;
 %type <value1> value;
 %type <number> number;
+%type <express_node> expr;
+
+%left MINUS PLUS
+%left STAR DIVIDE
 
 %%
 
@@ -437,33 +442,37 @@ select_attr:
 			relation_attr_init(&attr, NULL, "*");
 			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 		}
-    | ID attr_list {
-			RelAttr attr;
-			relation_attr_init(&attr, NULL, $1);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+    | expr attr_list {
+			// RelAttr attr;
+			// relation_attr_init(&attr, NULL, $1);
+			// selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+
+			selects_append_attr_expr(&CONTEXT->ssql->sstr.selection, $1);
 		}
-  	| ID DOT ID attr_list {
-			RelAttr attr;
-			relation_attr_init(&attr, $1, $3);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-		}
+  	// | ID DOT ID attr_list {
+	// 		RelAttr attr;
+	// 		relation_attr_init(&attr, $1, $3);
+	// 		selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	// 	}
     ;
 attr_list:
     /* empty */
-    | COMMA ID attr_list {
-			RelAttr attr;
-			relation_attr_init(&attr, NULL, $2);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+    | COMMA expr attr_list {
+			// RelAttr attr;
+			// relation_attr_init(&attr, NULL, $2);
+			// selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attr_expr(&CONTEXT->ssql->sstr.selection, $2);
      	  // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length].relation_name = NULL;
         // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length++].attribute_name=$2;
       }
-    | COMMA ID DOT ID attr_list {
-			RelAttr attr;
-			relation_attr_init(&attr, $2, $4);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+    //| COMMA expr attr_list {
+			// RelAttr attr;
+			// relation_attr_init(&attr, $2, $4);
+			// selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
         // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length].attribute_name=$4;
         // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length++].relation_name=$2;
-  	  }
+  	 // }
+	// | COMMA expr attr_list
   	;
 
 rel_list:
@@ -472,6 +481,71 @@ rel_list:
 				selects_append_relation(&CONTEXT->ssql->sstr.selection, $2);
 		  }
     ;
+expr:
+      expr PLUS expr{
+			fprintf(stdout, "expr '+' expr\n");
+			ExpressionNode *expression = expression_init($1, $3, NULL, NULL);
+			expression->op = PLUS_OP;
+			$$ = expression;
+	}
+	| expr MINUS expr{
+			fprintf(stdout, "expr '-' expr\n");
+			ExpressionNode *expression = expression_init($1, $3, NULL, NULL);
+			expression->op = MINUS_OP;
+			$$ = expression;
+	}
+	| expr STAR expr{
+			fprintf(stdout, "expr '*' expr\n");
+			ExpressionNode *expression = expression_init($1, $3, NULL, NULL);
+			expression->op = MULTI_OP;
+			$$ = expression;
+	}
+	| expr DIVIDE expr{
+			fprintf(stdout, "expr '/' expr\n");
+			ExpressionNode *expression = expression_init($1, $3, NULL, NULL);
+			expression->op = DIVIDE_OP;
+			$$ = expression;
+	}
+	| PLUS expr	{
+			fprintf(stdout, "+expr\n");
+			ExpressionNode *expression = expression_init($2, NULL, NULL, NULL);
+			expression->pre_op = PLUS_OP;
+			$$ = expression;
+	}
+	| MINUS expr {
+			fprintf(stdout, "-expr\n");
+			ExpressionNode *expression = expression_init($2, NULL, NULL, NULL);
+			expression->pre_op = MINUS_OP;
+			$$ = expression;
+
+	}
+	| LBRACE expr RBRACE{
+			fprintf(stdout, "expr\n");
+			ExpressionNode *expression = expression_init($2, NULL, NULL, NULL);
+			expression->has_brace = true;
+			$$ = expression;
+	}
+	| ID {
+			fprintf(stdout, "ID\n");
+			RelAttr attr;
+			relation_attr_init(&attr, NULL, $1);
+			$$ = expression_init( NULL, NULL, &attr, NULL);
+			
+	}
+	| ID DOT ID {
+		   fprintf(stdout, "ID DOT ID\n");
+		   RelAttr attr;
+		   relation_attr_init(&attr, $1, $3);
+		   $$ = expression_init( NULL, NULL, &attr, NULL);
+	}
+	| value {
+			fprintf(stdout, "value\n");
+			Value *value = &CONTEXT->values[CONTEXT->value_length - 1];
+			$$ = expression_init(NULL, NULL, NULL, value);
+	}
+	;
+
+
 where:
     /* empty */ 
     | WHERE condition condition_list {	

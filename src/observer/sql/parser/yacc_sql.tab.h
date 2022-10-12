@@ -108,7 +108,10 @@ extern int yydebug;
     PATH = 309,                    /* PATH  */
     SSS = 310,                     /* SSS  */
     STAR = 311,                    /* STAR  */
-    STRING_V = 312                 /* STRING_V  */
+    STRING_V = 312,                /* STRING_V  */
+    MINUS = 313,                   /* MINUS  */
+    PLUS = 314,                    /* PLUS  */
+    DIVIDE = 315                   /* DIVIDE  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -126,8 +129,9 @@ union YYSTYPE
   int number;
   float floats;
 	char *position;
+  struct ExpressionNode *express_node;
 
-#line 131 "yacc_sql.tab.h"
+#line 135 "yacc_sql.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

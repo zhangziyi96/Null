@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #define MAX_NUM 20
 #define MAX_REL_NAME 20
@@ -39,6 +40,14 @@ typedef enum {
   GREAT_THAN,   //">"     5
   NO_OP
 } CompOp;
+
+typedef enum {
+  PLUS_OP,      //+       0
+  MINUS_OP,     //-       1
+  MULTI_OP,     //*       2
+  DIVIDE_OP,    // /      3
+  NO_Calop
+} CalOp;
 
 //属性值类型
 typedef enum
@@ -90,6 +99,20 @@ typedef struct {
   size_t char_length; //the length for STRING type
 } AggreResult;
 
+typedef struct ExpressionNode{
+  struct ExpressionNode *left;
+  struct ExpressionNode *right;
+  CalOp op;
+  CalOp pre_op;
+  bool is_attr;
+  bool is_value;
+  RelAttr attr;
+  Value value;
+  bool has_brace;
+  Value result; //解释表达式时，计算出的结果
+} ExpressionNode;
+
+
 // struct of select
 typedef struct {
   size_t attr_num;                // Length of attrs in Select clause
@@ -100,6 +123,8 @@ typedef struct {
   Condition conditions[MAX_NUM];  // conditions in Where clause
   size_t aggre_size;
   Aggregation aggre[MAX_NUM];
+  ExpressionNode expr[MAX_NUM];
+  size_t expr_size;
 } Selects;
 
 // struct of insert
@@ -220,6 +245,8 @@ int check_date(const char* date);
 void format_date(const char* v, char *date);
 void value_destroy(Value *value);
 
+ExpressionNode *expression_init(ExpressionNode *left, ExpressionNode *right, RelAttr *attr, Value *value);
+
 void condition_init(Condition *condition, CompOp comp, int left_is_attr, RelAttr *left_attr, Value *left_value,
     int right_is_attr, RelAttr *right_attr, Value *right_value);
 void condition_destroy(Condition *condition);
@@ -234,6 +261,7 @@ void selects_append_attribute(Selects *selects, RelAttr *rel_attr);
 void selects_append_relation(Selects *selects, const char *relation_name);
 void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num);
 void selects_append_aggregation(Selects *selects, Aggregation *aggre);
+void selects_append_attr_expr(Selects *selectes, ExpressionNode *expr);
 void selects_destroy(Selects *selects);
 
 void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num);

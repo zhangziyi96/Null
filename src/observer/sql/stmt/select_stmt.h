@@ -40,6 +40,7 @@ public:
   const std::vector<Table *> &tables() const { return tables_; }
   const std::vector<Field> &query_fields() const { return query_fields_; }
   const std::vector<Aggregation> &aggregations() const {return aggregations_; }
+  const std::vector<ExpressionNode> &exprs() const {return exprs_; }
   FilterStmt *filter_stmt() const { return filter_stmt_; }
 
 private:
@@ -47,5 +48,6 @@ private:
   std::vector<Table *> tables_;
   FilterStmt *filter_stmt_ = nullptr;
   std::vector<Aggregation> aggregations_;
+  std::vector<ExpressionNode> exprs_;
 };
 

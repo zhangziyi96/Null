@@ -139,6 +139,11 @@ RC SelectStmt::create(Db *db, const Selects &select_sql, Stmt *&stmt)
   }
   std::reverse(aggregations.begin(), aggregations.end());
 
+  std::vector<ExpressionNode> exprs;
+  for(int i = select_sql.expr_size - 1; i >= 0; i--) {
+    ExpressionNode expr = select_sql.expr[i];
+    exprs.push_back(expr);
+  }
 
   // create filter statement in `where` statement
   FilterStmt *filter_stmt = nullptr;
@@ -154,6 +159,7 @@ RC SelectStmt::create(Db *db, const Selects &select_sql, Stmt *&stmt)
   select_stmt->tables_.swap(tables);
   select_stmt->query_fields_.swap(query_fields);
   select_stmt->aggregations_.swap(aggregations);
+  select_stmt->exprs_.swap(exprs);
   select_stmt->filter_stmt_ = filter_stmt;
   stmt = select_stmt;
   return RC::SUCCESS;

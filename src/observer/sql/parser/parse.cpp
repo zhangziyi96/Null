@@ -58,27 +58,6 @@ void value_init_string(Value *value, const char *v)
   value->data = strdup(v);
 }
 
-// bool check_date(int y, int m, int d)
-// {
-//     if(y < 1900 || y > 9999 ||
-//       (m <= 0 || m > 12) ||
-//       (d <= 0 || d > 31)){
-//           return false;
-//     }
-//     static int mon[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-//     const int max_day = mon[m - 1];
-//     if (d > max_day)
-//     {
-//         return false; 
-//     }
-
-//     bool leap = (y%400==0 || (y%100 && y%4==0));
-//     if(m == 2 && !leap && d > 28) {
-//         return false;
-//     }
-//     return true;
-// }
-
 int check_date(const char* date){
     int y,m,d;
     sscanf(date, "%d-%d-%d", &y, &m, &d);//not check return value eq 3, lex guarantee
@@ -138,6 +117,28 @@ void value_destroy(Value *value)
   free(value->data);
   value->data = nullptr;
 }
+
+ExpressionNode *expression_init(ExpressionNode *left, ExpressionNode *right, RelAttr *attr, Value *value)
+{
+  ExpressionNode *expression = new ExpressionNode;
+  expression->is_attr = false;
+  expression->is_value = false;
+  expression->has_brace = false;
+  expression->pre_op = NO_Calop;
+  expression->op = NO_Calop;
+  if(attr != nullptr) {
+    expression->attr = *attr;
+    expression->is_attr = true;
+  }
+  expression->left = left;
+  expression->right = right;
+  if(value != nullptr) {
+    expression->value = *value;
+    expression->is_value = true;
+  }
+  return expression;
+}
+
 
 void condition_init(Condition *condition, CompOp comp, int left_is_attr, RelAttr *left_attr, Value *left_value,
     int right_is_attr, RelAttr *right_attr, Value *right_value)
@@ -208,6 +209,18 @@ void selects_append_conditions(Selects *selects, Condition conditions[], size_t 
 void selects_append_aggregation(Selects *selects, Aggregation *aggre){
   selects->aggre[selects->aggre_size++] = *aggre;
 }
+
+void selects_append_attr_expr(Selects *selectes, ExpressionNode *expr) {
+  //表达式是一个attr，没有左右孩子
+  if (expr->left == nullptr && expr->right == nullptr) {
+    LOG_ERROR("attr: %s", expr->attr.attribute_name);
+    selects_append_attribute(selectes, &(expr->attr));
+    return;
+  } else {
+    selectes->expr[selectes->expr_size++] = *expr;
+  }
+}
+
 void selects_destroy(Selects *selects)
 {
   for (size_t i = 0; i < selects->attr_num; i++) {
