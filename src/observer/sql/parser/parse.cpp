@@ -16,6 +16,9 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/parse.h"
 #include "rc.h"
 #include "common/log/log.h"
+#include "sql/expr/tuple.h"
+#include "storage/common/table.h"
+#include "util/util.h"
 
 RC parse(char *st, Query *sqln);
 
@@ -140,24 +143,56 @@ ExpressionNode *expression_init(ExpressionNode *left, ExpressionNode *right, Rel
 }
 
 
-void condition_init(Condition *condition, CompOp comp, int left_is_attr, RelAttr *left_attr, Value *left_value,
-    int right_is_attr, RelAttr *right_attr, Value *right_value)
+void condition_init(Condition *condition, CompOp comp, ExpressionNode *left_expr, ExpressionNode *right_expr)
 {
   condition->comp = comp;
-  condition->left_is_attr = left_is_attr;
-  if (left_is_attr) {
-    condition->left_attr = *left_attr;
+  condition->left_expr = *left_expr;
+  condition->right_expr = *right_expr;
+
+  if(left_expr->is_attr) {
+    condition->left_is_attr = 1;
+    condition->left_attr = left_expr->attr;
   } else {
-    condition->left_value = *left_value;
+    condition->left_is_attr = 0;
+  }
+  if(left_expr->is_value) {
+    condition->left_is_value = 1;
+    condition->left_value = left_expr->value;
+  } else {
+    condition->left_is_value = 0;
   }
 
-  condition->right_is_attr = right_is_attr;
-  if (right_is_attr) {
-    condition->right_attr = *right_attr;
+  if(right_expr->is_attr) {
+    condition->right_is_attr = 1;
+    condition->right_attr = right_expr->attr;
   } else {
-    condition->right_value = *right_value;
+    condition->right_is_attr = 0;
   }
+  if(right_expr->is_value) {
+    condition->right_is_value = 1;
+    condition->right_value = right_expr->value;
+  } else {
+    condition->right_is_value = 0;
+  }
+
+
+
+  // condition->comp = comp;
+  // condition->left_is_attr = left_is_attr;
+  // if (left_is_attr) {
+  //   condition->left_attr = *left_attr;
+  // } else {
+  //   condition->left_value = *left_value;
+  // }
+
+  // condition->right_is_attr = right_is_attr;
+  // if (right_is_attr) {
+  //   condition->right_attr = *right_attr;
+  // } else {
+  //   condition->right_value = *right_value;
+  // }
 }
+
 void condition_destroy(Condition *condition)
 {
   if (condition->left_is_attr) {

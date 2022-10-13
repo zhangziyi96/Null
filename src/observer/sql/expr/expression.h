@@ -24,6 +24,7 @@ enum class ExprType {
   NONE,
   FIELD,
   VALUE,
+  Expr,
 };
 
 class Expression
@@ -100,4 +101,20 @@ public:
 
 private:
   TupleCell tuple_cell_;
+};
+
+class ExprExpr : public Expression
+{
+  public:
+    ExprExpr() = default;
+    ExprExpr(const ExpressionNode &expr, std::vector<Table*> tables) : expr_(expr), tables_(tables){}
+    virtual ~ExprExpr() = default;
+    RC get_value(const Tuple &tuple, TupleCell & cell) const override;
+    ExprType type() const override
+    {
+      return ExprType::Expr;
+    }
+  private:
+    ExpressionNode expr_;
+    std::vector<Table*> tables_;
 };

@@ -1,3 +1,5 @@
+#pragma once
+
 #include <string.h>
 #include "sql/parser/parse_defs.h"
 #include "../../deps/common/log/log.h"
@@ -18,3 +20,7 @@ Value value_plus_value(const Value &v1, const Value &v2);
 Value value_minus_value(const Value &v1, const Value &v2);
 Value value_multi_value(const Value &v1, const Value &v2);
 Value value_divide_value(const Value &v1, const Value &v2);
+
+Value cal_expr_value(const ExpressionNode &expr, const Tuple &tuple, const std::vector<Table*> tables);
+
+void cell_set_value(const Value &value, int length, TupleCell &cell);

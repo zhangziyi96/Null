@@ -246,3 +246,72 @@ Value value_divide_value(const Value &v1, const Value &v2) {
       return result;
     }
 }
+
+//calculate expr value
+Value cal_expr_value(const ExpressionNode &expr, const Tuple &tuple, const std::vector<Table*> tables){
+  //是叶节点
+  if(expr.left == nullptr && expr.right == nullptr) {
+    Value value;
+    if(expr.is_attr) {
+      Field field;
+      get_field(tables, expr.attr,field);
+      TupleCell cell;
+      tuple.find_cell(field, cell);
+      cell_to_value(cell, value);
+    } else if(expr.is_value) {
+      value = expr.value;
+    }
+    std::string str;
+    value_to_string(str, value);
+    LOG_ERROR("leaf value: %s", str.c_str());
+    return value;
+  }
+  Value left_value;
+  Value right_value;      std::string strl;
+    std::string strr;
+  if (expr.left != nullptr) {
+    left_value = cal_expr_value(*(expr.left), tuple, tables);  
+    value_to_string(strl, left_value);
+    LOG_ERROR("left_value: %s", strl.c_str());
+    if(left_value.data == nullptr && left_value.type == UNDEFINED) {//除数是0
+      return left_value;
+    }
+  }
+  if(expr.right != nullptr) {
+    right_value = cal_expr_value(*(expr.right), tuple, tables);
+    value_to_string(strr, right_value);
+    LOG_ERROR("right_value: %s", strr.c_str());
+    LOG_ERROR("afer right value: %s", strl.c_str());
+    if(right_value.data == nullptr && right_value.type == UNDEFINED) {//除数是0
+      return right_value;
+    }
+  }
+
+  if(expr.op == PLUS_OP) {
+
+    return value_plus_value(left_value, right_value);
+  } else if(expr.op == MINUS_OP) {
+    return value_minus_value(left_value, right_value);
+  } else if(expr.op == MULTI_OP) {
+    return value_multi_value(left_value, right_value);
+  } else if(expr.op == DIVIDE_OP) {
+    return value_divide_value(left_value, right_value);
+  } else {
+    if (expr.pre_op == MINUS_OP) {
+      Value temp;
+      temp.data = new int;
+      *(int*)(temp.data) = 0;
+      temp.type = INTS;
+      return value_minus_value(temp, left_value);
+    } 
+    return left_value;
+  }
+
+}
+
+void cell_set_value(const Value &value, int length, TupleCell &cell) {
+    cell.set_type(value.type);
+    cell.set_data((char*)(value.data));
+    cell.set_length(length);
+    
+}

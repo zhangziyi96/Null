@@ -73,16 +73,36 @@ typedef struct _Value {
   void *data;     // value
 } Value;
 
+typedef struct ExpressionNode{
+  struct ExpressionNode *left;
+  struct ExpressionNode *right;
+  CalOp op;
+  CalOp pre_op;
+  bool is_attr;
+  bool is_value;
+  RelAttr attr;
+  Value value;
+  bool has_brace;
+  Value result; //解释表达式时，计算出的结果
+} ExpressionNode;
+
 typedef struct _Condition {
   int left_is_attr;    // TRUE if left-hand side is an attribute
                        // 1时，操作符左边是属性名，0时，是属性值
+  int left_is_value;
   Value left_value;    // left-hand side value if left_is_attr = FALSE
   RelAttr left_attr;   // left-hand side attribute
   CompOp comp;         // comparison operator
   int right_is_attr;   // TRUE if right-hand side is an attribute
                        // 1时，操作符右边是属性名，0时，是属性值
+  int right_is_value;  //1时，操作符右边是属性值，0是属性名
   RelAttr right_attr;  // right-hand side attribute if right_is_attr = TRUE 右边的属性
   Value right_value;   // right-hand side value if right_is_attr = FALSE
+  ExpressionNode left_expr; //左表达式
+  ExpressionNode right_expr; //右表达式
+  int right_is_expr;
+  int left_is_expr;
+  
 } Condition;
 
 typedef struct {
@@ -98,20 +118,6 @@ typedef struct {
   float avg;
   size_t char_length; //the length for STRING type
 } AggreResult;
-
-typedef struct ExpressionNode{
-  struct ExpressionNode *left;
-  struct ExpressionNode *right;
-  CalOp op;
-  CalOp pre_op;
-  bool is_attr;
-  bool is_value;
-  RelAttr attr;
-  Value value;
-  bool has_brace;
-  Value result; //解释表达式时，计算出的结果
-} ExpressionNode;
-
 
 // struct of select
 typedef struct {
@@ -246,9 +252,9 @@ void format_date(const char* v, char *date);
 void value_destroy(Value *value);
 
 ExpressionNode *expression_init(ExpressionNode *left, ExpressionNode *right, RelAttr *attr, Value *value);
+void expr_destroy(ExpressionNode *expr);
 
-void condition_init(Condition *condition, CompOp comp, int left_is_attr, RelAttr *left_attr, Value *left_value,
-    int right_is_attr, RelAttr *right_attr, Value *right_value);
+void condition_init(Condition *condition, CompOp comp, ExpressionNode *left_expr, ExpressionNode *right_expr);
 void condition_destroy(Condition *condition);
 
 void aggre_init(Aggregation *aggre, AggreType type, RelAttr * rel_attr);

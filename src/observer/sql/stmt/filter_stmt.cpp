@@ -100,7 +100,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
       return rc;
     }
     left = new FieldExpr(table, field);
-  } else {
+  } else if(condition.left_is_value) {
     //   default_table->table_meta().field(condition)
     //   LOG_ERROR("condition.left_value.type: %d", condition.left_value.type);
     //   if(condition.right_value.type == CHARS && condition.left_value.type == DATES ||
@@ -113,6 +113,12 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     // } else {
       left = new ValueExpr(condition.left_value);
     // }
+  } else {
+    std::vector<Table*> tables_vector;
+    for(std::unordered_map<std::string, Table*>::iterator it = tables->begin(); it != tables->end(); ++it){
+        tables_vector.push_back(it->second);
+    }
+    left = new ExprExpr(condition.left_expr, tables_vector);
   }
 
   if (condition.right_is_attr) {
@@ -125,7 +131,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
       return rc;
     }
     right = new FieldExpr(table, field);
-  } else {
+  } else if(condition.right_is_value){
     // LOG_ERROR("condition.right_value.type: %d", condition.right_value.type);
     // LOG_ERROR("condition.left_value.type: %d", condition.left_value.type);
     // if(condition.right_value.type == CHARS && condition.left_value.type == DATES ||
@@ -138,6 +144,12 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     // } else {
       right = new ValueExpr(condition.right_value);
     // }
+  } else {
+    std::vector<Table*> tables_vector;
+    for(std::unordered_map<std::string, Table*>::iterator it = tables->begin(); it != tables->end(); ++it){
+        tables_vector.push_back(it->second);
+    }
+    right = new ExprExpr(condition.right_expr, tables_vector);
   }
 
   filter_unit = new FilterUnit;

@@ -13,7 +13,7 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/expr/tuple.h"
-
+#include "util/util.h"
 
 RC FieldExpr::get_value(const Tuple &tuple, TupleCell &cell) const
 {
@@ -23,5 +23,15 @@ RC FieldExpr::get_value(const Tuple &tuple, TupleCell &cell) const
 RC ValueExpr::get_value(const Tuple &tuple, TupleCell & cell) const
 {
   cell = tuple_cell_;
+  return RC::SUCCESS;
+}
+
+RC ExprExpr::get_value(const Tuple &tuple, TupleCell &cell) const
+{
+  Value value = cal_expr_value(expr_, tuple, tables_);
+  if (value.type == UNDEFINED && value.data == nullptr) {
+    return RC::INVALID_ARGUMENT;
+  }
+  cell_set_value(value, 0, cell); //表达式现在不支持string，默认传入长度0
   return RC::SUCCESS;
 }
